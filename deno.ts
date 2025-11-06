@@ -9,37 +9,38 @@ const CONFIG = {
   SITE_ICON: Deno.env.get("SITE_ICON") || "https://docs.newapi.pro/assets/logo.png",
 };
 
-// 图标配置
-const ICON_CONFIG = {
-  openai: {
+// 图标和分组配置
+// key 将作为组名，value 包含图标和用于匹配的关键词
+const GROUP_CONFIG = {
+  OpenAI: {
     icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/openai.webp",
-    keywords: ["openai", "gpt"],
+    keywords: ["gpt", "dall-e"],
   },
-  gemini: {
+  Gemini: {
     icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/gemini-color.webp",
     keywords: ["gemini", "google", "gemma"],
   },
-  claude: {
+  Claude: {
     icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/claude-color.webp",
     keywords: ["claude", "anthropic"],
   },
-  grok: {
+  Grok: {
     icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/grok.webp",
     keywords: ["grok", "xai"],
   },
-  qwen: {
+  Qwen: {
     icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/qwen-color.webp",
     keywords: ["qwen", "tongyi", "wan"],
   },
-  zhipu: {
+  智谱: {
     icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/zhipu-color.webp",
     keywords: ["zhipu", "thudm", "glm", "zai"],
   },
-  deepseek: {
+  DeepSeek: {
     icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/deepseek-color.webp",
     keywords: ["deepseek"],
   },
-  kimi: {
+  Kimi: {
     icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/kimi-color.webp",
     keywords: ["kimi", "moonshot"],
   },
@@ -47,7 +48,7 @@ const ICON_CONFIG = {
     icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/hunyuan-color.webp",
     keywords: ["hunyuan", "tencent"],
   },
-  perplexity: {
+  Perplexity: {
     icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/perplexity-color.webp",
     keywords: ["pplx", "perplexity"],
   },
@@ -62,54 +63,62 @@ const ICON_CONFIG = {
   LongCat: {
     icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/longcat-color.webp",
     keywords: ["longcat", "longcat-ai"],
-    },
+  },
   MiniMax: {
     icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/minimax-color.webp",
     keywords: ["minimax"],
   },
+  default: { // 默认组
+    name: "其他",
+    icon: "https://registry.npmmirror.com/@lobehub/icons-static-webp/latest/files/light/openai.webp",
+  },
 };
 
 // ==================== 工具函数 ====================
-function getGroupIcon(groupName: string): string {
-  const groupNameLower = groupName.toLowerCase();
 
-  for (const config of Object.values(ICON_CONFIG)) {
-    if (config.keywords.some(keyword => groupNameLower.includes(keyword.toLowerCase()))) {
-      return config.icon;
-    }
-  }
-
-  return ICON_CONFIG.openai.icon;
-}
-
-function groupModelsByPrefix(models: string[]): Record<string, string[]> {
+/**
+ * 根据关键词对模型进行分组
+ * @param models 模型名称数组
+ * @returns 分组后的对象，键为组名，值为模型数组
+ */
+function groupModelsByKeywords(models: string[]): Record<string, string[]> {
   const groups: Record<string, string[]> = {};
-  const separators = ["/", "-", "_"];
 
   models.forEach((model) => {
-    const splitIndex = model
-      .split("")
-      .findIndex((char) => separators.includes(char));
-    const prefix = splitIndex !== -1 ? model.substring(0, splitIndex) : model;
+    const modelLower = model.toLowerCase();
+    let assignedGroupName: string | null = null;
 
-    if (!groups[prefix]) groups[prefix] = [];
-    groups[prefix].push(model);
+    // 按照定义的顺序遍历组，进行匹配
+    for (const groupName in GROUP_CONFIG) {
+      const config = GROUP_CONFIG[groupName as keyof typeof GROUP_CONFIG];
+      // 确保 'default' 组不会被关键词匹配
+      if (groupName === 'default' || !config.keywords) continue;
+      
+      if (config.keywords.some(keyword => modelLower.includes(keyword.toLowerCase()))) {
+        assignedGroupName = groupName;
+        break; // 匹配成功后，立即停止遍历
+      }
+    }
+
+    // 如果没有匹配到任何组，则分配给默认组 'default'
+    const finalGroupName = assignedGroupName || 'default';
+
+    if (!groups[finalGroupName]) {
+      groups[finalGroupName] = [];
+    }
+    groups[finalGroupName].push(model);
   });
 
   return groups;
 }
 
-function sortGroupNames(
-  groupNames: string[],
-  groupedModels: Record<string, string[]>
-): string[] {
-  return groupNames.sort((a, b) => {
-    const countA = groupedModels[a].length;
-    const countB = groupedModels[b].length;
-
-    if (countA !== countB) return countB - countA;
-    return a.toLowerCase().localeCompare(b.toLowerCase());
-  });
+/**
+ * 根据组名获取图标
+ * @param groupName 组名
+ * @returns 图标URL
+ */
+function getGroupIcon(groupName: string): string {
+  return GROUP_CONFIG[groupName as keyof typeof GROUP_CONFIG]?.icon || GROUP_CONFIG.default.icon;
 }
 
 // ==================== API 调用 ====================
@@ -183,6 +192,7 @@ function generateModelCard(model: string, groupName: string): string {
 }
 
 function generateGroupSection(groupName: string, models: string[]): string {
+  const displayName = GROUP_CONFIG[groupName]?.name || groupName;
   return `
         <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
             <div class="p-5 cursor-pointer hover:bg-gray-50 transition-colors" 
@@ -191,12 +201,12 @@ function generateGroupSection(groupName: string, models: string[]): string {
                     <div class="flex items-center space-x-4">
                         <div class="relative">
                             <img src="${getGroupIcon(groupName)}" 
-                                 alt="${groupName}" 
+                                 alt="${displayName}" 
                                  class="w-12 h-12 rounded-xl object-cover bg-gray-50 border border-gray-200 shadow-sm"
                                  onerror="this.src='https://via.placeholder.com/48x48/f0f0f0/999999?text=AI'">
                         </div>
                         <div>
-                            <h3 class="text-lg font-semibold text-gray-900">${groupName}</h3>
+                            <h3 class="text-lg font-semibold text-gray-900">${displayName}</h3>
                             <p class="text-sm text-gray-500">${models.length} 个模型</p>
                         </div>
                     </div>
@@ -209,9 +219,7 @@ function generateGroupSection(groupName: string, models: string[]): string {
             <div id="content-${groupName}" class="border-t border-gray-100">
                 <div class="p-5">
                     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                        ${models
-                          .map((model) => generateModelCard(model, groupName))
-                          .join("")}
+                        ${models.map((model) => generateModelCard(model, groupName)).join("")}
                     </div>
                 </div>
             </div>
@@ -220,11 +228,9 @@ function generateGroupSection(groupName: string, models: string[]): string {
 }
 
 function generateHtml(models: string[] | null, error: string | null): string {
-  const groupedModels = models
-    ? groupModelsByPrefix(models)
-    : null;
+  const groupedModels = models ? groupModelsByKeywords(models) : null;
   const groupNames = groupedModels
-    ? sortGroupNames(Object.keys(groupedModels), groupedModels)
+    ? Object.keys(groupedModels).sort((a, b) => groupedModels[b].length - groupedModels[a].length)
     : [];
 
   return `
@@ -238,25 +244,10 @@ function generateHtml(models: string[] | null, error: string | null): string {
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        body {
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-            min-height: 100vh;
-        }
-        
-        .glass-effect {
-            background: rgba(255, 255, 255, 0.9);
-            backdrop-filter: blur(10px);
-        }
-        
-        .notification-hidden {
-            transform: translateX(calc(100% + 2rem));
-            opacity: 0;
-        }
-        
-        .notification-visible {
-            transform: translateX(0);
-            opacity: 1;
-        }
+        body { background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); min-height: 100vh; }
+        .glass-effect { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); }
+        .notification-hidden { transform: translateX(calc(100% + 2rem)); opacity: 0; }
+        .notification-visible { transform: translateX(0); opacity: 1; }
     </style>
 </head>
 <body class="font-sans">
@@ -299,11 +290,7 @@ function generateHtml(models: string[] | null, error: string | null): string {
             
             ${groupedModels ? `
             <div class="space-y-6">
-                ${groupNames
-                  .map((groupName) =>
-                    generateGroupSection(groupName, groupedModels![groupName])
-                  )
-                  .join("")}
+                ${groupNames.map((groupName) => generateGroupSection(groupName, groupedModels![groupName])).join("")}
             </div>
             ` : `
             <div class="bg-white rounded-2xl p-12 text-center max-w-2xl mx-auto shadow-lg">
@@ -323,20 +310,16 @@ function generateHtml(models: string[] | null, error: string | null): string {
                 const notification = document.getElementById('notification');
                 notification.classList.remove('notification-hidden');
                 notification.classList.add('notification-visible');
-                
                 setTimeout(() => {
                     notification.classList.remove('notification-visible');
                     notification.classList.add('notification-hidden');
                 }, 2000);
-            }).catch(err => {
-                console.error('复制失败:', err);
-            });
+            }).catch(err => console.error('复制失败:', err));
         }
 
         function toggleGroup(groupName) {
             const content = document.getElementById('content-' + groupName);
             const icon = document.getElementById('icon-' + groupName);
-            
             if (content.style.display === 'none') {
                 content.style.display = 'block';
                 icon.style.transform = 'rotate(0deg)';
@@ -346,12 +329,8 @@ function generateHtml(models: string[] | null, error: string | null): string {
             }
         }
 
-        // 页面加载时设置初始状态
-        document.addEventListener('DOMContentLoaded', function() {
-            // 默认展开所有分组
-            document.querySelectorAll('[id^="content-"]').forEach(content => {
-                content.style.display = 'block';
-            });
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('[id^="content-"]').forEach(el => el.style.display = 'block');
         });
     </script>
 </body>
@@ -360,19 +339,12 @@ function generateHtml(models: string[] | null, error: string | null): string {
 }
 
 // ==================== 服务器启动 ====================
-serve(
-  async (req: Request) => {
-    const url = new URL(req.url);
-
-    if (url.pathname === "/") {
-      const { models, error } = await fetchModels();
-      const html = generateHtml(models, error);
-
-      return new Response(html, {
-        headers: { "Content-Type": "text/html" },
-      });
-    }
-
-    return new Response("未找到页面", { status: 404 });
+serve(async (req: Request) => {
+  const url = new URL(req.url);
+  if (url.pathname === "/") {
+    const { models, error } = await fetchModels();
+    const html = generateHtml(models, error);
+    return new Response(html, { headers: { "Content-Type": "text/html" } });
   }
-);
+  return new Response("未找到页面", { status: 404 });
+});
